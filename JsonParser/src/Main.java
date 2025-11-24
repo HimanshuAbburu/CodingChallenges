@@ -1,36 +1,27 @@
+import exceptions.JsonParseException;
+import models.JsonValue;
+
 import java.io.*;
 import java.util.*;
 
 public class Main {
-    private static final String JSON_FILE_PATH = "resources/tests/step4/valid.json";
-    // Set the file path as needed
-
-    public static void main(String[] args) {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader br = new BufferedReader(new FileReader(JSON_FILE_PATH))) {
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line);
-        } catch (IOException io) {
-            System.out.println("Error reading file: " + io.getMessage());
-            System.exit(1);
-        }
-
-        try {
-            Lexer lexer = new Lexer(sb.toString());
-            List<Token> tokens = lexer.tokenize();
-            Parser parser = new Parser(tokens);
-            boolean valid = parser.parse();
-
-            if (valid) {
-                System.out.println("Valid JSON");
-                System.exit(0);
-            } else {
-                System.out.println("Invalid JSON");
-                System.exit(1);
+    private static final String JSON_FILE_PATH = "resources/tests/step3/valid.json";
+    
+        public static void main(String[] args) {
+            try (BufferedReader br = new BufferedReader(new FileReader(JSON_FILE_PATH))) {
+                StringBuilder input = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) { input.append(line); }
+                Lexer lexer = new Lexer(input.toString());
+                List<Token> tokens = lexer.tokenize();
+                JsonParser parser = new JsonParser(tokens);
+                JsonValue result = parser.parse();
+                System.out.println(result.toJson());
+            } catch (JsonParseException e) {
+                System.err.println("Invalid JSON: " + e.getMessage());
+            } catch (IOException e) {
+                System.err.println("File error: " + e.getMessage());
             }
-        } catch (Exception e) {
-            System.out.println("Invalid JSON");
-            System.exit(1);
         }
     }
-}
+
