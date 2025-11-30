@@ -1,26 +1,51 @@
-# watchmedo shell-command --patterns='*.py' --recursive --command='python3 src/compressor_app/main.py' src/compressor_app
+import argparse
+from compression import compress, decompress
 
-from pathlib import Path
+parser = argparse.ArgumentParser(description='Compress or decompress a file using Huffman coding.', prog='main.py', usage='%(prog)s [options] file')
 
-file = Path(__file__).parent / "resources" / "test.txt"
+parser.add_argument('file', type=str, help='The file to compress or decompress.')
+parser.add_argument('-c', '--compress', action='store_true', help='Compress a text file')
+parser.add_argument('-d', '--decompress', action='store_true', help='Decompress a text file')
+parser.add_argument('-o', '--output', type=str, help='Output file name')
 
-CHARACTER_FREQUENCY = {}
+args = parser.parse_args()
 
-try:
-    with open(file, "r") as file:
+input_file = args.file
+
+if args.output:
+    output_file = args.output
+else:
+    output_file = input_file
+    try:
+        output_file = input_file.split('.')[0]
+    except IndexError:
+        pass
+
+    if args.compress:
+        output_file += '.compressed'
+    if args.decompress:
+        output_file += '.decompressed'
+
+
+
+if args.compress:
+    with open(input_file, 'r') as file:
         text = file.read()
-        for char in text:
-            CHARACTER_FREQUENCY[char] = CHARACTER_FREQUENCY.get(char, 0) + 1
-        
-    # print(CHARACTER_FREQUENCY['X'])
-    
+        compressed, huffman, msg_len = compress(text)
+        with open(output_file, 'wb') as file:
+            file.write(str(huffman).encode())   # write huffman table
+            file.write(b'\n')
+            file.write(str(msg_len).encode())   # write msg_len
+            file.write(b'\n')
+            file.write(compressed)              # write binary data
 
-except FileNotFoundError:
-    print(f"File not found : {file}")
-except PermissionError:
-    print(f"Permission denied : {file}")
-except Exception as e:
-    print(f"An error occurred : {e}")
-
-# file = open("./resources/test.txt", "r")
-# print(file.read())
+       
+if args.decompress:
+    with open(input_file, 'rb') as file:
+        huffman = eval(file.readline().decode())
+        msg_len = int(file.readline().decode())
+        compressed = file.read()
+        compressed = str(bin(int(compressed.hex(), 16))).replace('0b', '')
+        decompressed = decompress(compressed, huffman, msg_len)
+        with open(output_file, 'w') as file:
+            file.write(decompressed)
