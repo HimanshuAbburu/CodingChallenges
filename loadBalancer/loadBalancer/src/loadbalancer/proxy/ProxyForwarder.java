@@ -1,3 +1,8 @@
+package loadbalancer.proxy;
+
+import loadbalancer.core.Backend;
+import loadbalancer.logging.Logger;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,6 +17,12 @@ public final class ProxyForwarder {
     private static final int READ_TIMEOUT_MS = 5000;
     private static final int BUFFER_SIZE = 8192;
 
+    private final Logger logger;
+
+    public ProxyForwarder(Logger logger) {
+        this.logger = logger;
+    }
+
     /** Throws IOException if the backend could not be reached or the exchange failed mid-flight. */
     public void forward(byte[] rawRequest, Backend backend, OutputStream clientOut) throws IOException {
         try (Socket backendSocket = new Socket()) {
@@ -24,19 +35,16 @@ public final class ProxyForwarder {
             backendOut.write(rawRequest);
             backendOut.flush();
 
+            StringBuilder responseLog = new StringBuilder();
             byte[] buffer = new byte[BUFFER_SIZE];
             int bytesRead;
-            boolean loggedHeader = false;
             while ((bytesRead = backendIn.read(buffer)) != -1) {
-                if (!loggedHeader) {
-                    System.out.print("Response from server: ");
-                    loggedHeader = true;
-                }
-                System.out.print(new String(buffer, 0, bytesRead, StandardCharsets.ISO_8859_1));
+                responseLog.append(new String(buffer, 0, bytesRead, StandardCharsets.ISO_8859_1));
                 clientOut.write(buffer, 0, bytesRead);
             }
-            System.out.println();
             clientOut.flush();
+
+            logger.info("Response from server: " + responseLog);
         }
     }
 }

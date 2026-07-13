@@ -10,28 +10,38 @@ routes around ones that go offline (and back in once they recover).
 
 ## Architecture
 
-| Class | Responsibility |
-|---|---|
-| `Backend` | A backend's host/port and health flag |
-| `ServerPool` | Owns the set of backends, exposes the currently healthy ones |
-| `LoadBalancingStrategy` / `RoundRobinStrategy` | Picks the next backend for a request (Strategy pattern) |
-| `HealthCheckProbe` / `HttpHealthCheckProbe` | Checks whether a single backend is alive |
-| `HealthChecker` | Runs the probe against every backend on a schedule, updates health state |
-| `RawHttpRequest` | Reads a full HTTP request (headers + body) off a socket |
-| `ProxyForwarder` | Sends a request to a chosen backend and streams the response back |
-| `ConnectionHandler` | Per-connection flow: read request → pick backend → forward, retrying another healthy backend on failure |
-| `LoadBalancerServer` | Accepts connections on a thread pool and dispatches to `ConnectionHandler` |
-| `LoadBalancerConfig` | Parses CLI arguments |
-| `Main` | Composition root — wires everything together and starts it |
+Classes are organized by responsibility into packages under `loadbalancer`:
 
-`BackendServer` / `BackendServerMain` is a small standalone HTTP server (`be`)
-used only for testing the load balancer; it responds `200 OK` with a fixed
-body to any request.
+| Package | Class | Responsibility |
+|---|---|---|
+| `core` | `Backend` | A backend's host/port and health flag |
+| `core` | `ServerPool` | Owns the set of backends, exposes the currently healthy ones |
+| `strategy` | `LoadBalancingStrategy` / `RoundRobinStrategy` | Picks the next backend for a request (Strategy pattern) |
+| `health` | `HealthCheckProbe` / `HttpHealthCheckProbe` | Checks whether a single backend is alive |
+| `health` | `HealthChecker` | Runs the probe against every backend on a schedule, updates health state |
+| `http` | `RawHttpRequest` | Reads a full HTTP request (headers + body) off a socket |
+| `proxy` | `ProxyForwarder` | Sends a request to a chosen backend and streams the response back |
+| `proxy` | `ConnectionHandler` | Per-connection flow: read request → pick backend → forward, retrying another healthy backend on failure |
+| `server` | `LoadBalancerServer` | Accepts connections on a thread pool and dispatches to `ConnectionHandler` |
+| `config` | `LoadBalancerConfig` | Parses CLI arguments |
+| `logging` | `Logger` / `ConsoleLogger` | Log sink abstraction, injected into every component instead of calling `System.out` directly |
+| (root) | `Main` | Composition root — constructs collaborators (including thread pools) and starts everything |
+
+`testbackend.BackendServer` / `BackendServerMain` is a small standalone HTTP
+server (`be`) used only for testing the load balancer; it responds `200 OK`
+with a fixed body to any request.
+
+Dependencies point inward toward `core`/`http`/`logging`: `strategy` and
+`health` depend only on `core`; `proxy` depends on `core`, `http`, `strategy`,
+and `logging`; `server` depends on `proxy`; `Main` is the only class that
+knows about every package, and it's the only place threads pools are
+constructed — everything else receives them (and the `Logger`) through its
+constructor.
 
 ## Build
 
 ```bash
-javac -d out src/*.java
+javac -d out $(find src -name "*.java")
 ```
 
 ## Run
@@ -39,14 +49,14 @@ javac -d out src/*.java
 Start a couple of test backends:
 
 ```bash
-java -cp out BackendServerMain 8080
-java -cp out BackendServerMain 8081
+java -cp out loadbalancer.testbackend.BackendServerMain 8080
+java -cp out loadbalancer.testbackend.BackendServerMain 8081
 ```
 
 Start the load balancer:
 
 ```bash
-java -cp out Main --port 9000 --backend localhost:8080 --backend localhost:8081
+java -cp out loadbalancer.Main --port 9000 --backend localhost:8080 --backend localhost:8081
 ```
 
 Then hit it:

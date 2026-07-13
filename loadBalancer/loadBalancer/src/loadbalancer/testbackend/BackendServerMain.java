@@ -1,3 +1,5 @@
+package loadbalancer.testbackend;
+
 /** Standalone entry point for the "be" test backend, run independently of the load balancer. */
 public final class BackendServerMain {
 

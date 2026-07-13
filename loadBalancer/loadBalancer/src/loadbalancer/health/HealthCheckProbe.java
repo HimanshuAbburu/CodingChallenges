@@ -1,3 +1,7 @@
+package loadbalancer.health;
+
+import loadbalancer.core.Backend;
+
 import java.time.Duration;
 
 /** Abstraction over "is this backend alive?" so the check mechanism can be swapped out. */

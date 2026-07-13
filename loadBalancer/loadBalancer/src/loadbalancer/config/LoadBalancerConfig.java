@@ -1,3 +1,7 @@
+package loadbalancer.config;
+
+import loadbalancer.core.Backend;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

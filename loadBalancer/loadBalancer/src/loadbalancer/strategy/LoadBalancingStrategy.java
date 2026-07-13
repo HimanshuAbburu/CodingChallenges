@@ -1,3 +1,7 @@
+package loadbalancer.strategy;
+
+import loadbalancer.core.Backend;
+
 import java.util.List;
 
 /**

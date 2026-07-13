@@ -1,3 +1,9 @@
+package loadbalancer.testbackend;
+
+import loadbalancer.http.RawHttpRequest;
+import loadbalancer.logging.ConsoleLogger;
+import loadbalancer.logging.Logger;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ServerSocket;
@@ -16,20 +22,22 @@ public final class BackendServer {
 
     private final int port;
     private final String responseBody;
+    private final Logger logger;
     private final ExecutorService connectionPool = Executors.newCachedThreadPool();
 
     public BackendServer(int port) {
-        this(port, "Hello From Backend Server");
+        this(port, "Hello From Backend Server", new ConsoleLogger());
     }
 
-    public BackendServer(int port, String responseBody) {
+    public BackendServer(int port, String responseBody, Logger logger) {
         this.port = port;
         this.responseBody = responseBody;
+        this.logger = logger;
     }
 
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Backend server listening on port " + port);
+            logger.info("Backend server listening on port " + port);
             while (true) {
                 Socket socket = serverSocket.accept();
                 connectionPool.submit(() -> handleConnection(socket));
@@ -41,13 +49,13 @@ public final class BackendServer {
 
     private void handleConnection(Socket socket) {
         try (socket) {
-            System.out.println("Received request from " + socket.getInetAddress().getHostAddress());
+            logger.info("Received request from " + socket.getInetAddress().getHostAddress());
 
             Optional<RawHttpRequest> maybeRequest = RawHttpRequest.readFrom(socket.getInputStream());
             if (maybeRequest.isEmpty()) {
                 return;
             }
-            System.out.println(maybeRequest.get().toLogString());
+            logger.info(maybeRequest.get().toLogString());
 
             byte[] body = responseBody.getBytes(StandardCharsets.UTF_8);
             String headers = "HTTP/1.1 200 OK\r\n"
@@ -60,9 +68,9 @@ public final class BackendServer {
             out.write(body);
             out.flush();
 
-            System.out.println("Replied with a hello message");
+            logger.info("Replied with a hello message");
         } catch (IOException e) {
-            System.err.println("Error handling backend request: " + e.getMessage());
+            logger.error("Error handling backend request: " + e.getMessage());
         }
     }
 }

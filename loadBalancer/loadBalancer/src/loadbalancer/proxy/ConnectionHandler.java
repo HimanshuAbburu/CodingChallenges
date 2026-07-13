@@ -1,3 +1,11 @@
+package loadbalancer.proxy;
+
+import loadbalancer.core.Backend;
+import loadbalancer.core.ServerPool;
+import loadbalancer.http.RawHttpRequest;
+import loadbalancer.logging.Logger;
+import loadbalancer.strategy.LoadBalancingStrategy;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.Socket;
@@ -19,13 +27,15 @@ public final class ConnectionHandler implements Runnable {
     private final ServerPool serverPool;
     private final LoadBalancingStrategy strategy;
     private final ProxyForwarder forwarder;
+    private final Logger logger;
 
-    public ConnectionHandler(Socket clientSocket, ServerPool serverPool,
-                              LoadBalancingStrategy strategy, ProxyForwarder forwarder) {
+    public ConnectionHandler(Socket clientSocket, ServerPool serverPool, LoadBalancingStrategy strategy,
+                              ProxyForwarder forwarder, Logger logger) {
         this.clientSocket = clientSocket;
         this.serverPool = serverPool;
         this.strategy = strategy;
         this.forwarder = forwarder;
+        this.logger = logger;
     }
 
     @Override
@@ -33,21 +43,21 @@ public final class ConnectionHandler implements Runnable {
         try (clientSocket) {
             clientSocket.setSoTimeout(CLIENT_READ_TIMEOUT_MS);
             String clientIp = clientSocket.getInetAddress().getHostAddress();
-            System.out.println("Received request from " + clientIp);
+            logger.info("Received request from " + clientIp);
 
             Optional<RawHttpRequest> maybeRequest = RawHttpRequest.readFrom(clientSocket.getInputStream());
             if (maybeRequest.isEmpty()) {
                 return;
             }
             RawHttpRequest request = maybeRequest.get();
-            System.out.println(request.toLogString());
+            logger.info(request.toLogString());
 
             OutputStream clientOut = clientSocket.getOutputStream();
             if (!forwardWithFailover(request, clientOut)) {
                 writeServiceUnavailable(clientOut);
             }
         } catch (IOException e) {
-            System.err.println("Error handling client connection: " + e.getMessage());
+            logger.error("Error handling client connection: " + e.getMessage());
         }
     }
 
@@ -68,12 +78,12 @@ public final class ConnectionHandler implements Runnable {
             }
             attempted.add(target);
 
-            System.out.println("Routing request to: " + target);
+            logger.info("Routing request to: " + target);
             try {
                 forwarder.forward(request.getRawBytes(), target, clientOut);
                 return true;
             } catch (IOException e) {
-                System.err.println("Backend " + target + " unreachable, taking it out of rotation: " + e.getMessage());
+                logger.error("Backend " + target + " unreachable, taking it out of rotation: " + e.getMessage());
                 target.markUnhealthy();
             }
         }

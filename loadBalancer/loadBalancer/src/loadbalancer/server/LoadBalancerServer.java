@@ -1,8 +1,15 @@
+package loadbalancer.server;
+
+import loadbalancer.core.ServerPool;
+import loadbalancer.logging.Logger;
+import loadbalancer.proxy.ConnectionHandler;
+import loadbalancer.proxy.ProxyForwarder;
+import loadbalancer.strategy.LoadBalancingStrategy;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 /** Accepts client connections and hands each one to a {@link ConnectionHandler}. */
 public final class LoadBalancerServer {
@@ -11,31 +18,34 @@ public final class LoadBalancerServer {
     private final ServerPool serverPool;
     private final LoadBalancingStrategy strategy;
     private final ProxyForwarder forwarder;
-    private final ExecutorService connectionPool = Executors.newCachedThreadPool();
+    private final ExecutorService connectionPool;
+    private final Logger logger;
 
     private volatile ServerSocket serverSocket;
     private volatile boolean running;
 
     public LoadBalancerServer(int port, ServerPool serverPool, LoadBalancingStrategy strategy,
-                               ProxyForwarder forwarder) {
+                               ProxyForwarder forwarder, ExecutorService connectionPool, Logger logger) {
         this.port = port;
         this.serverPool = serverPool;
         this.strategy = strategy;
         this.forwarder = forwarder;
+        this.connectionPool = connectionPool;
+        this.logger = logger;
     }
 
     public void start() {
         running = true;
         try (ServerSocket socket = new ServerSocket(port)) {
             serverSocket = socket;
-            System.out.println("Load balancer listening on port " + port);
+            logger.info("Load balancer listening on port " + port);
             while (running) {
                 try {
                     Socket clientSocket = socket.accept();
-                    connectionPool.submit(new ConnectionHandler(clientSocket, serverPool, strategy, forwarder));
+                    connectionPool.submit(new ConnectionHandler(clientSocket, serverPool, strategy, forwarder, logger));
                 } catch (IOException e) {
                     if (running) {
-                        System.err.println("Error accepting connection: " + e.getMessage());
+                        logger.error("Error accepting connection: " + e.getMessage());
                     }
                 }
             }
